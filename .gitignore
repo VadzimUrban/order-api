@@ -1,0 +1,12 @@
+.env
+.env.*
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+*.log
+docker-compose*.yml
+.idea/
+.vscode/

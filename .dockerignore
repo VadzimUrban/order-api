@@ -1,0 +1,20 @@
+# Исключаем всё, что не нужно в образе
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.env
+.env.*
+.git/
+.github/
+.venv/
+venv/
+*.md
+LICENSE
+tests/
+Dockerfile
+docker-compose*.yml
+.vscode/
+.idea/
+*.log
