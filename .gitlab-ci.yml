@@ -5,7 +5,6 @@
 
 # ГЛОБАЛЬНЫЕ НАСТРОЙКИ (уровень корня документа)
 # Эти настройки применяются ко всему проекту
-shared_runners: false  # ← ОТКЛЮЧАЕМ общие раннеры GitLab (требуют верификации)
 variables:
   PIP_CACHE_DIR: ".pip-cache"
   DOCKER_DRIVER: overlay2
