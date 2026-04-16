@@ -1,69 +1,49 @@
-# ==========================================
-# GitHub Actions: CI/CD Pipeline for Order Processing API
-# ==========================================
-
 name: CI/CD Pipeline
 
-  # Когда запускать пайплайн
 on:
   push:
-    branches: [ main ]
-    tags: [ 'v*' ]
+    branches: [main]
+    tags: ['v*']
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
-      # Глобальные переменные (доступны во всех job)
-    env:
-      REGISTRY: ghcr.io
-    IMAGE_NAME: ${{ github.repository }}
-    PYTHON_VERSION: '3.12'
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  PYTHON_VERSION: '3.12'
 
-      # Jobs выполняются параллельно, если нет зависимостей (needs)
-    jobs:
-      # ==========================================
-      # JOB 1: LINT (Статический анализ кода)
-      # ==========================================
-      lint:
-        name: Code Quality
-    runs-on: ubuntu-24.04  # GitHub-hosted runner (чистый, быстрый, бесплатный)
-
+jobs:
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-24.04
     steps:
-      # 1. Клонируем репозиторий
       - name: Checkout code
         uses: actions/checkout@v4
 
-          # 2. Настраиваем Python + автоматический кэш pip
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'  # GitHub автоматически кэширует ~/.cache/pip
+          cache: 'pip'
 
-            # 3. Устанавливаем линтеры
       - name: Install linting tools
         run: |
           python -m pip install --upgrade pip
           pip install black flake8
 
-          # 4. Запускаем проверки
       - name: Check formatting (black)
         run: black --check --diff .
 
       - name: Check style (flake8)
         run: flake8 . --select=E9,F63,F7,F82 --show-source --statistics
 
-          # ==========================================
-          # JOB 2: TEST (Юнит-тесты с БД и очередью)
-          # ==========================================
-        test:
-          name: Run Tests
-        runs-on: ubuntu-24.04
-        needs: lint  # Ждём успешного lint перед запуском
-
-          # Сервис-контейнеры для тестов (аналог docker-compose services)
-        services:
-          postgres:
-            image: postgres:16-alpine
+  test:
+    name: Run Tests
+    runs-on: ubuntu-24.04
+    needs: lint
+    services:
+      postgres:
+        image: postgres:16-alpine
         env:
           POSTGRES_DB: test_orders
           POSTGRES_USER: test_user
@@ -75,9 +55,8 @@ on:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 5
-
-        redis:
-          image: redis:7-alpine
+      redis:
+        image: redis:7-alpine
         ports:
           - 6379:6379
         options: >-
@@ -85,9 +64,8 @@ on:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 5
-
-        steps:
-          - name: Checkout code
+    steps:
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
@@ -102,7 +80,6 @@ on:
           pip install -r requirements.txt
           pip install pytest pytest-cov httpx
 
-          # Запускаем тесты. Переменные окружения передаются явно.
       - name: Run pytest with coverage
         env:
           DB_HOST: localhost
@@ -114,49 +91,41 @@ on:
           APP_ENV: test
         run: |
           pytest tests/ \
-          --cov=main \
-          --cov-report=xml \
-          --cov-report=term \
-          --junitxml=pytest-report.xml \
-          -v
+            --cov=main \
+            --cov-report=xml \
+            --cov-report=term \
+            --junitxml=pytest-report.xml \
+            -v
 
-          # Сохраняем отчёт для вкладки "Actions → Artifacts"
       - name: Upload test results
-        if: always()  # Загрузить даже если тесты упали
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: pytest-report.xml
           retention-days: 7
 
-# ==========================================
-# JOB 3: BUILD & PUSH (исправленная версия)
-# ==========================================
   build:
     name: Build & Push Docker Image
     runs-on: ubuntu-24.04
     needs: test
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      # 🔥 НОВЫЙ ШАГ: Настраиваем buildx с правильным драйвером
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
-          driver-opts: network=host  # Для совместимости с GitHub-hosted runners
-      
-      # Авторизация в GHCR
+          driver-opts: network=host
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
-      # Мета-теги
+
       - name: Extract metadata for Docker
         id: meta
         uses: docker/metadata-action@v5
@@ -167,8 +136,7 @@ on:
             type=ref,event=branch
             type=ref,event=tag
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-      
-      # Сборка и пуш (теперь без driver:, он настроен выше)
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
